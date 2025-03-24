@@ -99,7 +99,7 @@ hands = mp_hands.Hands(
 # Add after other global variables
 ROBOFLOW_CLIENT = InferenceHTTPClient(
     api_url="https://detect.roboflow.com",
-    api_key="YvsbdvKc1p5Jtb82NBTd"
+    api_key="ROBOFLOW_API_KEY"
 )
 
 # User Model
