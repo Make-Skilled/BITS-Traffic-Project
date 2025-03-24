@@ -1,0 +1,415 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container mx-auto px-4 py-8">
+    <h2 class="text-2xl font-bold mb-6">Traffic Violation Detection</h2>
+
+    <!-- Tab Navigation -->
+    <div class="mb-6">
+        <div class="border-b border-gray-200">
+            <nav class="-mb-px flex space-x-8" aria-label="Tabs">
+                <button class="tab-btn active border-indigo-500 text-indigo-600 whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm" 
+                        onclick="switchTab('photo-upload')">
+                    Photo Upload
+                </button>
+                <button class="tab-btn border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm"
+                        onclick="switchTab('webcam')">
+                    Webcam Capture
+                </button>
+            </nav>
+        </div>
+    </div>
+
+    <!-- Photo Upload Section -->
+    <div id="photo-upload-section" class="tab-content">
+        <div class="max-w-xl mx-auto bg-white p-6 rounded-lg shadow-md">
+            <form action="{{ url_for('upload_photo') }}" method="post" enctype="multipart/form-data" class="space-y-4">
+                <div class="flex items-center justify-center w-full">
+                    <label class="flex flex-col items-center justify-center w-full h-64 border-2 border-gray-300 border-dashed rounded-lg cursor-pointer bg-gray-50 hover:bg-gray-100">
+                        <div class="flex flex-col items-center justify-center pt-5 pb-6">
+                            <svg class="w-10 h-10 mb-3 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path>
+                            </svg>
+                            <p class="mb-2 text-sm text-gray-500"><span class="font-semibold">Click to upload</span> or drag and drop</p>
+                            <p class="text-xs text-gray-500">PNG, JPG or JPEG</p>
+                        </div>
+                        <input type="file" name="photo" class="hidden" accept="image/*" onchange="previewImage(this)"/>
+                    </label>
+                </div>
+                <div id="image-preview" class="hidden mt-4">
+                    <img id="preview" class="max-w-full h-auto rounded-lg" src="" alt="Preview"/>
+                </div>
+                <button type="submit" class="w-full bg-indigo-600 text-white py-2 px-4 rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2">
+                    Analyze Photo
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Webcam Section -->
+    <div id="webcam-section" class="tab-content hidden">
+        <div class="max-w-xl mx-auto bg-white p-6 rounded-lg shadow-md">
+            <div class="space-y-4">
+                <div class="relative">
+                    <video id="webcam" class="w-full rounded-lg" autoplay playsinline muted></video>
+                    <canvas id="canvas" class="hidden"></canvas>
+                    <!-- Loading overlay -->
+                    <div id="camera-loading" class="absolute inset-0 flex items-center justify-center bg-black bg-opacity-50 hidden">
+                        <div class="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-white"></div>
+                    </div>
+                    <!-- Error message -->
+                    <div id="camera-error" class="absolute inset-0 flex items-center justify-center bg-black bg-opacity-50 hidden">
+                        <div class="bg-white p-4 rounded-lg shadow-lg max-w-sm">
+                            <p class="text-red-600 mb-3">Camera access is blocked</p>
+                            <div class="text-sm text-gray-600 mb-4">
+                                <p class="font-medium mb-2">To enable camera access:</p>
+                                <div class="space-y-4">
+                                    <div>
+                                        <p class="font-medium">Chrome:</p>
+                                        <ol class="list-decimal list-inside ml-2">
+                                            <li>Click the camera icon in the address bar</li>
+                                            <li>Click "Site settings"</li>
+                                            <li>Change Camera from "Block" to "Allow"</li>
+                                            <li>Refresh this page</li>
+                                        </ol>
+                                    </div>
+                                    <div>
+                                        <p class="font-medium">Safari:</p>
+                                        <ol class="list-decimal list-inside ml-2">
+                                            <li>Click Safari → Settings</li>
+                                            <li>Go to Websites → Camera</li>
+                                            <li>Find this website and select "Allow"</li>
+                                            <li>Refresh this page</li>
+                                        </ol>
+                                    </div>
+                                    <div>
+                                        <p class="font-medium">Firefox:</p>
+                                        <ol class="list-decimal list-inside ml-2">
+                                            <li>Click the camera icon in the address bar</li>
+                                            <li>Remove the "Block" setting</li>
+                                            <li>Click "Allow" when prompted</li>
+                                            <li>Refresh this page</li>
+                                        </ol>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="flex space-x-3">
+                                <button onclick="requestCameraPermission()" class="flex-1 bg-indigo-600 text-white py-2 px-4 rounded-md hover:bg-indigo-700">
+                                    Try Again
+                                </button>
+                                <button onclick="window.location.reload()" class="flex-1 bg-gray-200 text-gray-700 py-2 px-4 rounded-md hover:bg-gray-300">
+                                    Refresh Page
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="flex space-x-4">
+                    <button id="start-camera" onclick="startWebcam()" class="flex-1 bg-green-600 text-white py-2 px-4 rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2">
+                        Start Camera
+                    </button>
+                    <button id="capture-photo" onclick="capturePhoto()" class="flex-1 bg-indigo-600 text-white py-2 px-4 rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2" disabled>
+                        Capture Photo
+                    </button>
+                </div>
+                <div id="permission-instructions" class="text-sm text-gray-600 mt-2">
+                    <p>If the camera doesn't start:</p>
+                    <ol class="list-decimal list-inside mt-1">
+                        <li>Check the camera icon in your browser's address bar</li>
+                        <li>Click it and ensure camera access is allowed</li>
+                        <li>Refresh the page after allowing access</li>
+                    </ol>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Results Section -->
+    {% if results %}
+    <div class="mt-8 max-w-xl mx-auto bg-white p-6 rounded-lg shadow-md">
+        <h3 class="text-xl font-semibold mb-4">Detection Results</h3>
+        
+        <!-- Detection Status -->
+        <div class="space-y-4">
+            <!-- Person Detection -->
+            <div class="p-4 rounded-lg {% if results.person_detected %}bg-green-50{% else %}bg-red-50{% endif %}">
+                <p class="text-lg font-medium">Person Detection: 
+                    <span class="{% if results.person_detected %}text-green-600{% else %}text-red-600{% endif %}">
+                        {{ "✅ Detected" if results.person_detected else "❌ Not Detected" }}
+                    </span>
+                </p>
+            </div>
+
+            <!-- Helmet Detection -->
+            {% if results.person_detected %}
+            <div class="p-4 rounded-lg {% if results.has_helmet %}bg-green-50{% else %}bg-red-50{% endif %}">
+                <p class="text-lg font-medium">Helmet Status: 
+                    <span class="{% if results.has_helmet %}text-green-600{% else %}text-red-600{% endif %}">
+                        {% if results.has_helmet %}
+                            ✅ Helmet Detected (Confidence: {{ "%.2f"|format(results.helmet_confidence) }})
+                        {% else %}
+                            ❌ No Helmet Detected
+                        {% endif %}
+                    </span>
+                </p>
+            </div>
+            {% endif %}
+
+            <!-- Phone Usage -->
+            {% if results.person_detected %}
+            <div class="p-4 rounded-lg {% if not results.using_phone %}bg-green-50{% else %}bg-red-50{% endif %}">
+                <p class="text-lg font-medium">Phone Usage: 
+                    <span class="{% if not results.using_phone %}text-green-600{% else %}text-red-600{% endif %}">
+                        {% if results.using_phone %}
+                            ⚠️ Phone Usage Detected
+                        {% else %}
+                            ✅ No Phone Usage
+                        {% endif %}
+                    </span>
+                </p>
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- Processed Image -->
+        {% if results.processed_image %}
+        <div class="mt-6">
+            <h4 class="text-lg font-medium mb-2">Processed Image</h4>
+            <div class="relative rounded-lg overflow-hidden shadow-lg">
+                <img src="{{ url_for('static', filename=results.processed_image) }}" 
+                     alt="Processed Image" 
+                     class="w-full h-auto">
+            </div>
+        </div>
+        {% endif %}
+    </div>
+    {% endif %}
+
+    <!-- Flash Messages -->
+    {% with messages = get_flashed_messages() %}
+        {% if messages %}
+            <div class="mt-4 max-w-xl mx-auto">
+                {% for message in messages %}
+                    <div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative" role="alert">
+                        <span class="block sm:inline">{{ message }}</span>
+                    </div>
+                {% endfor %}
+            </div>
+        {% endif %}
+    {% endwith %}
+</div>
+
+<script>
+// Tab switching functionality
+function switchTab(tabId) {
+    document.querySelectorAll('.tab-content').forEach(content => {
+        content.classList.add('hidden');
+    });
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+        btn.classList.remove('border-indigo-500', 'text-indigo-600');
+        btn.classList.add('border-transparent', 'text-gray-500');
+    });
+    
+    document.getElementById(`${tabId}-section`).classList.remove('hidden');
+    event.currentTarget.classList.remove('border-transparent', 'text-gray-500');
+    event.currentTarget.classList.add('border-indigo-500', 'text-indigo-600');
+}
+
+// Image preview functionality
+function previewImage(input) {
+    const preview = document.getElementById('preview');
+    const previewDiv = document.getElementById('image-preview');
+    
+    if (input.files && input.files[0]) {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            preview.src = e.target.result;
+            previewDiv.classList.remove('hidden');
+        }
+        reader.readAsDataURL(input.files[0]);
+    }
+}
+
+// Webcam functionality
+let stream = null;
+
+function showCameraLoading(show) {
+    document.getElementById('camera-loading').classList.toggle('hidden', !show);
+}
+
+function showCameraError(show) {
+    document.getElementById('camera-error').classList.toggle('hidden', !show);
+}
+
+function updateCaptureButton(enabled) {
+    const captureBtn = document.getElementById('capture-photo');
+    captureBtn.disabled = !enabled;
+    if (enabled) {
+        captureBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+    } else {
+        captureBtn.classList.add('opacity-50', 'cursor-not-allowed');
+    }
+}
+
+async function checkCameraPermission() {
+    try {
+        const result = await navigator.permissions.query({ name: 'camera' });
+        return result.state;
+    } catch (error) {
+        console.log('Permissions API not supported, will try direct access');
+        return 'prompt';
+    }
+}
+
+async function requestCameraPermission() {
+    showCameraLoading(true);
+    showCameraError(false);
+    
+    try {
+        const permissionStatus = await checkCameraPermission();
+        
+        if (permissionStatus === 'denied') {
+            showCameraError(true);
+            showCameraLoading(false);
+            return false;
+        }
+        
+        stream = await navigator.mediaDevices.getUserMedia({ 
+            video: { 
+                facingMode: 'environment',
+                width: { ideal: 1280 },
+                height: { ideal: 720 }
+            } 
+        });
+        
+        const video = document.getElementById('webcam');
+        video.srcObject = stream;
+        video.onloadedmetadata = () => {
+            showCameraLoading(false);
+            updateCaptureButton(true);
+        };
+        
+        return true;
+    } catch (err) {
+        console.error("Error accessing webcam:", err);
+        showCameraError(true);
+        showCameraLoading(false);
+        updateCaptureButton(false);
+        return false;
+    }
+}
+
+async function startWebcam() {
+    showCameraLoading(true);
+    updateCaptureButton(false);
+    
+    if (stream) {
+        stream.getTracks().forEach(track => track.stop());
+    }
+    
+    await requestCameraPermission();
+}
+
+async function capturePhoto() {
+    if (!stream) {
+        alert("Please start the camera first");
+        return;
+    }
+
+    const video = document.getElementById('webcam');
+    const canvas = document.getElementById('canvas');
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    canvas.getContext('2d').drawImage(video, 0, 0);
+
+    showCameraLoading(true);
+
+    try {
+        // Convert canvas to blob and submit
+        const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', 0.9));
+        const formData = new FormData();
+        formData.append('photo', blob, 'webcam.jpg');
+
+        const response = await fetch("{{ url_for('webcam_photo') }}", {
+            method: 'POST',
+            body: formData
+        });
+
+        if (response.ok) {
+            const htmlContent = await response.text();
+            
+            // Create a temporary div to parse the HTML
+            const tempDiv = document.createElement('div');
+            tempDiv.innerHTML = htmlContent;
+            
+            // Find the results section in the response
+            const newResults = tempDiv.querySelector('.mt-8');
+            if (newResults) {
+                // Find or create the results container
+                let resultsContainer = document.querySelector('.mt-8');
+                if (!resultsContainer) {
+                    resultsContainer = document.createElement('div');
+                    resultsContainer.className = 'mt-8 max-w-xl mx-auto bg-white p-6 rounded-lg shadow-md';
+                    document.querySelector('.container').appendChild(resultsContainer);
+                }
+                
+                // Update the results
+                resultsContainer.innerHTML = newResults.innerHTML;
+                
+                // Switch to photo upload tab
+                switchTab('photo-upload');
+                
+                // Scroll to results
+                resultsContainer.scrollIntoView({ behavior: 'smooth' });
+            } else {
+                console.error("No results found in response");
+                alert("Error displaying results");
+            }
+        } else {
+            const errorText = await response.text();
+            console.error("Server error:", errorText);
+            alert("Error processing photo");
+        }
+    } catch (error) {
+        console.error("Error:", error);
+        alert("Error uploading photo");
+    } finally {
+        showCameraLoading(false);
+        // Stop the webcam stream
+        if (stream) {
+            stream.getTracks().forEach(track => track.stop());
+            stream = null;
+            updateCaptureButton(false);
+        }
+    }
+}
+
+// Initialize camera permissions check when tab is switched to webcam
+document.addEventListener('DOMContentLoaded', function() {
+    const originalSwitchTab = window.switchTab;
+    window.switchTab = async function(tabId) {
+        originalSwitchTab(tabId);
+        if (tabId === 'webcam') {
+            // Check if we already have an active stream
+            if (!stream) {
+                await startWebcam();
+            }
+        } else {
+            // Stop the stream when switching away from webcam tab
+            if (stream) {
+                stream.getTracks().forEach(track => track.stop());
+                stream = null;
+                updateCaptureButton(false);
+            }
+        }
+    };
+});
+
+// Cleanup webcam on page unload
+window.onbeforeunload = function() {
+    if (stream) {
+        stream.getTracks().forEach(track => track.stop());
+    }
+};
+</script>
+{% endblock %} 

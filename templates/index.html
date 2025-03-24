@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto text-center">
+    <h1 class="text-4xl font-bold mb-6">Welcome to Traffic Signal System</h1>
+    <p class="text-xl text-gray-600 mb-8">
+        An intelligent traffic management system that analyzes traffic density and optimizes signal timing for better flow.
+    </p>
+    
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-8 mb-12">
+        <div class="bg-white p-6 rounded-lg shadow-md">
+            <div class="text-blue-500 text-4xl mb-4">
+                <i class="fas fa-traffic-light"></i>
+            </div>
+            <h3 class="text-xl font-semibold mb-2">Smart Control</h3>
+            <p class="text-gray-600">
+                Automatically adjusts signal timing based on real-time traffic density
+            </p>
+        </div>
+        
+        <div class="bg-white p-6 rounded-lg shadow-md">
+            <div class="text-blue-500 text-4xl mb-4">
+                <i class="fas fa-chart-line"></i>
+            </div>
+            <h3 class="text-xl font-semibold mb-2">Real-time Analytics</h3>
+            <p class="text-gray-600">
+                Monitor traffic patterns and system performance in real-time
+            </p>
+        </div>
+        
+        <div class="bg-white p-6 rounded-lg shadow-md">
+            <div class="text-blue-500 text-4xl mb-4">
+                <i class="fas fa-clock"></i>
+            </div>
+            <h3 class="text-xl font-semibold mb-2">Reduced Wait Times</h3>
+            <p class="text-gray-600">
+                Minimize traffic congestion and improve overall flow
+            </p>
+        </div>
+    </div>
+    
+    {% if not current_user.is_authenticated %}
+    <div class="space-x-4">
+        <a href="{{ url_for('login') }}"
+            class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-lg">
+            Login
+        </a>
+        <a href="{{ url_for('signup') }}"
+            class="bg-green-500 hover:bg-green-700 text-white font-bold py-3 px-6 rounded-lg">
+            Sign Up
+        </a>
+    </div>
+    {% else %}
+    <div>
+        <a href="{{ url_for('dashboard') }}"
+            class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-lg">
+            Go to Dashboard
+        </a>
+    </div>
+    {% endif %}
+</div>
+{% endblock %} 

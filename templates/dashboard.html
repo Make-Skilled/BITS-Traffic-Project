@@ -1,0 +1,843 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container mx-auto px-4">
+    <h1 class="text-3xl font-bold mb-8">Traffic Signal Dashboard</h1>
+    
+    <!-- System Mode Indicator -->
+    <div class="mb-6 bg-white rounded-lg shadow-md p-4">
+        <h2 class="text-xl font-semibold mb-2">System Mode</h2>
+        <div class="flex items-center space-x-4">
+            <div id="mode-indicator" class="px-4 py-2 rounded-full font-semibold">
+                <span id="mode-text" class="text-lg">Manual Mode</span>
+            </div>
+            <span id="mode-description" class="text-gray-600"></span>
+        </div>
+    </div>
+    
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <!-- Traffic Signal Status -->
+        <div class="bg-white rounded-lg shadow-md p-6">
+            <h2 class="text-xl font-semibold mb-4">Signal Status</h2>
+            <div class="grid grid-cols-2 gap-4">
+                <div class="text-center p-4 border rounded-lg">
+                    <h3 class="font-medium mb-2">North Signal</h3>
+                    <div id="north-signal" class="w-16 h-16 mx-auto rounded-full {{ 'bg-red-500' if signal_status.get('north') == 'red' else 'bg-green-500' }}"></div>
+                    <p class="mt-2">Wait Time: <span id="north-wait">{{ signal_status.get('north_wait', '0') }}s</span></p>
+                </div>
+                <div class="text-center p-4 border rounded-lg">
+                    <h3 class="font-medium mb-2">South Signal</h3>
+                    <div id="south-signal" class="w-16 h-16 mx-auto rounded-full {{ 'bg-red-500' if signal_status.get('south') == 'red' else 'bg-green-500' }}"></div>
+                    <p class="mt-2">Wait Time: <span id="south-wait">{{ signal_status.get('south_wait', '0') }}s</span></p>
+                </div>
+                <div class="text-center p-4 border rounded-lg">
+                    <h3 class="font-medium mb-2">East Signal</h3>
+                    <div id="east-signal" class="w-16 h-16 mx-auto rounded-full {{ 'bg-red-500' if signal_status.get('east') == 'red' else 'bg-green-500' }}"></div>
+                    <p class="mt-2">Wait Time: <span id="east-wait">{{ signal_status.get('east_wait', '0') }}s</span></p>
+                </div>
+                <div class="text-center p-4 border rounded-lg">
+                    <h3 class="font-medium mb-2">West Signal</h3>
+                    <div id="west-signal" class="w-16 h-16 mx-auto rounded-full {{ 'bg-red-500' if signal_status.get('west') == 'red' else 'bg-green-500' }}"></div>
+                    <p class="mt-2">Wait Time: <span id="west-wait">{{ signal_status.get('west_wait', '0') }}s</span></p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Traffic Density Analysis -->
+        <div class="bg-white rounded-lg shadow-md p-6">
+            <h2 class="text-xl font-semibold mb-4">Traffic Density</h2>
+            <div class="space-y-4">
+                <div class="flex items-center justify-between">
+                    <span>North</span>
+                    <div class="w-2/3 bg-gray-200 rounded-full h-4">
+                        <div id="north-density" class="bg-blue-600 h-4 rounded-full" style="width: 0%"></div>
+                    </div>
+                    <span id="north-density-text">0%</span>
+                </div>
+                <div class="flex items-center justify-between">
+                    <span>South</span>
+                    <div class="w-2/3 bg-gray-200 rounded-full h-4">
+                        <div id="south-density" class="bg-blue-600 h-4 rounded-full" style="width: 0%"></div>
+                    </div>
+                    <span id="south-density-text">0%</span>
+                </div>
+                <div class="flex items-center justify-between">
+                    <span>East</span>
+                    <div class="w-2/3 bg-gray-200 rounded-full h-4">
+                        <div id="east-density" class="bg-blue-600 h-4 rounded-full" style="width: 0%"></div>
+                    </div>
+                    <span id="east-density-text">0%</span>
+                </div>
+                <div class="flex items-center justify-between">
+                    <span>West</span>
+                    <div class="w-2/3 bg-gray-200 rounded-full h-4">
+                        <div id="west-density" class="bg-blue-600 h-4 rounded-full" style="width: 0%"></div>
+                    </div>
+                    <span id="west-density-text">0%</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- System Controls -->
+        <div class="bg-white rounded-lg shadow-md p-6">
+            <h2 class="text-xl font-semibold mb-4">System Controls</h2>
+            <div class="space-y-4">
+                <button id="timer-control" class="w-full bg-purple-500 hover:bg-purple-600 text-white font-bold py-2 px-4 rounded">
+                    Start Timer Control
+                </button>
+                <button id="auto-control" class="w-full bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded">
+                    Start Automatic Control
+                </button>
+                <button id="emergency-stop" class="w-full bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded">
+                    Emergency Stop
+                </button>
+                <button id="manual-override" class="w-full bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded">
+                    Manual Override
+                </button>
+            </div>
+            <div id="timer-status" class="mt-4 text-center hidden">
+                <p class="text-sm font-medium">Timer Control Active</p>
+                <p class="text-lg font-bold">Next Switch: <span id="next-switch">30s</span></p>
+            </div>
+        </div>
+
+        <!-- Statistics -->
+        <div class="bg-white rounded-lg shadow-md p-6">
+            <h2 class="text-xl font-semibold mb-4">Statistics</h2>
+            <div class="grid grid-cols-2 gap-4">
+                <div class="p-4 bg-gray-50 rounded-lg">
+                    <h3 class="text-sm font-medium text-gray-500">Average Wait Time</h3>
+                    <p id="avg-wait-time" class="text-2xl font-bold">0s</p>
+                </div>
+                <div class="p-4 bg-gray-50 rounded-lg">
+                    <h3 class="text-sm font-medium text-gray-500">Total Vehicles</h3>
+                    <p id="total-vehicles" class="text-2xl font-bold">0</p>
+                </div>
+                <div class="p-4 bg-gray-50 rounded-lg">
+                    <h3 class="text-sm font-medium text-gray-500">System Status</h3>
+                    <p id="system-status" class="text-2xl font-bold text-green-500">Active</p>
+                </div>
+                <div class="p-4 bg-gray-50 rounded-lg">
+                    <h3 class="text-sm font-medium text-gray-500">Efficiency</h3>
+                    <p id="system-efficiency" class="text-2xl font-bold">0%</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Auto Control Modal -->
+<div id="auto-modal" class="hidden fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+    <div class="relative top-20 mx-auto p-5 border w-[800px] shadow-lg rounded-md bg-white">
+        <div class="mt-3">
+            <h3 class="text-lg leading-6 font-medium text-gray-900 text-center">Upload Traffic Photos</h3>
+            <div class="mt-2 px-7 py-3">
+                <p class="text-sm text-gray-500 text-center mb-4">
+                    Upload photos for each direction to analyze traffic density
+                </p>
+                <div class="grid grid-cols-2 gap-6">
+                    <!-- North Direction -->
+                    <div class="border rounded-lg p-4">
+                        <h4 class="font-medium mb-2">North Direction</h4>
+                        <div class="mb-2">
+                            <input type="file" id="north-photo" accept="image/*" class="hidden" onchange="previewImage('north')">
+                            <label for="north-photo" class="cursor-pointer bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 block text-center">
+                                Choose Photo
+                            </label>
+                        </div>
+                        <div id="north-preview" class="w-full h-40 bg-gray-100 rounded flex items-center justify-center">
+                            <span class="text-gray-400">No photo selected</span>
+                        </div>
+                        <p class="mt-2 text-sm">Vehicles detected: <span id="north-count" class="font-bold">0</span></p>
+                    </div>
+
+                    <!-- South Direction -->
+                    <div class="border rounded-lg p-4">
+                        <h4 class="font-medium mb-2">South Direction</h4>
+                        <div class="mb-2">
+                            <input type="file" id="south-photo" accept="image/*" class="hidden" onchange="previewImage('south')">
+                            <label for="south-photo" class="cursor-pointer bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 block text-center">
+                                Choose Photo
+                            </label>
+                        </div>
+                        <div id="south-preview" class="w-full h-40 bg-gray-100 rounded flex items-center justify-center">
+                            <span class="text-gray-400">No photo selected</span>
+                        </div>
+                        <p class="mt-2 text-sm">Vehicles detected: <span id="south-count" class="font-bold">0</span></p>
+                    </div>
+
+                    <!-- East Direction -->
+                    <div class="border rounded-lg p-4">
+                        <h4 class="font-medium mb-2">East Direction</h4>
+                        <div class="mb-2">
+                            <input type="file" id="east-photo" accept="image/*" class="hidden" onchange="previewImage('east')">
+                            <label for="east-photo" class="cursor-pointer bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 block text-center">
+                                Choose Photo
+                            </label>
+                        </div>
+                        <div id="east-preview" class="w-full h-40 bg-gray-100 rounded flex items-center justify-center">
+                            <span class="text-gray-400">No photo selected</span>
+                        </div>
+                        <p class="mt-2 text-sm">Vehicles detected: <span id="east-count" class="font-bold">0</span></p>
+                    </div>
+
+                    <!-- West Direction -->
+                    <div class="border rounded-lg p-4">
+                        <h4 class="font-medium mb-2">West Direction</h4>
+                        <div class="mb-2">
+                            <input type="file" id="west-photo" accept="image/*" class="hidden" onchange="previewImage('west')">
+                            <label for="west-photo" class="cursor-pointer bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 block text-center">
+                                Choose Photo
+                            </label>
+                        </div>
+                        <div id="west-preview" class="w-full h-40 bg-gray-100 rounded flex items-center justify-center">
+                            <span class="text-gray-400">No photo selected</span>
+                        </div>
+                        <p class="mt-2 text-sm">Vehicles detected: <span id="west-count" class="font-bold">0</span></p>
+                    </div>
+                </div>
+
+                <div class="mt-6 flex justify-center space-x-4">
+                    <button onclick="startAutoControl()" class="bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-6 rounded">
+                        Start Analysis
+                    </button>
+                    <button onclick="closeAutoModal()" class="bg-gray-500 hover:bg-gray-600 text-white font-bold py-2 px-6 rounded">
+                        Cancel
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Emergency Stop Modal -->
+<div id="emergency-modal" class="hidden fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full">
+    <div class="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
+        <div class="mt-3 text-center">
+            <h3 class="text-lg leading-6 font-medium text-gray-900">Emergency Stop</h3>
+            <div class="mt-2 px-7 py-3">
+                <p class="text-sm text-gray-500">
+                    Select the direction to allow traffic:
+                </p>
+                <div class="mt-4 space-y-2">
+                    <button onclick="handleEmergencyStop('north')" class="w-full bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded">
+                        North
+                    </button>
+                    <button onclick="handleEmergencyStop('south')" class="w-full bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded">
+                        South
+                    </button>
+                    <button onclick="handleEmergencyStop('east')" class="w-full bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded">
+                        East
+                    </button>
+                    <button onclick="handleEmergencyStop('west')" class="w-full bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded">
+                        West
+                    </button>
+                </div>
+                <button onclick="closeEmergencyModal()" class="mt-4 bg-gray-500 hover:bg-gray-600 text-white font-bold py-2 px-4 rounded">
+                    Cancel
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Manual Override Modal -->
+<div id="manual-modal" class="hidden fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full">
+    <div class="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
+        <div class="mt-3 text-center">
+            <h3 class="text-lg leading-6 font-medium text-gray-900">Manual Override</h3>
+            <div class="mt-2 px-7 py-3">
+                <p class="text-sm text-gray-500">
+                    Select the direction to set green signal:
+                </p>
+                <div class="mt-4 space-y-2">
+                    <button onclick="handleManualOverride('north')" class="w-full bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded">
+                        North
+                    </button>
+                    <button onclick="handleManualOverride('south')" class="w-full bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded">
+                        South
+                    </button>
+                    <button onclick="handleManualOverride('east')" class="w-full bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded">
+                        East
+                    </button>
+                    <button onclick="handleManualOverride('west')" class="w-full bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded">
+                        West
+                    </button>
+                </div>
+                <button onclick="closeManualModal()" class="mt-4 bg-gray-500 hover:bg-gray-600 text-white font-bold py-2 px-4 rounded">
+                    Cancel
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Add jQuery before the closing body tag -->
+<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+<script>
+    let timerInterval;
+    let isTimerActive = false;
+    const CYCLE_TIME = 30; // Time in seconds for each signal
+    const DIRECTIONS = ['north', 'south', 'east', 'west'];
+    let currentDirectionIndex = 0;
+    let remainingTime = CYCLE_TIME;
+    let currentMode = 'manual'; // Current system mode
+
+    // Show emergency stop modal
+    document.getElementById('emergency-stop').addEventListener('click', function() {
+        if (isTimerActive) {
+            stopTimerControl();
+        }
+        document.getElementById('emergency-modal').classList.remove('hidden');
+    });
+
+    // Close emergency stop modal
+    function closeEmergencyModal() {
+        document.getElementById('emergency-modal').classList.add('hidden');
+    }
+
+    // Handle emergency stop action
+    function handleEmergencyStop(direction) {
+        fetch('/emergency_stop', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ direction: direction })
+        })
+        .then(response => response.json())
+        .then(data => {
+            // Update signal status
+            Object.keys(data.signal_status).forEach(dir => {
+                const signal = document.getElementById(`${dir}-signal`);
+                const wait = document.getElementById(`${dir}-wait`);
+                
+                if (signal) {
+                    signal.className = `w-16 h-16 mx-auto rounded-full ${data.signal_status[dir] === 'red' ? 'bg-red-500' : 'bg-green-500'}`;
+                }
+                if (wait) {
+                    wait.textContent = `${data.wait_times[dir]}s`;
+                }
+            });
+
+            // Close modal
+            closeEmergencyModal();
+            updateSystemMode('emergency', `Emergency passage allowed for ${direction} direction`);
+            updateStatistics();
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('An error occurred while processing your request.');
+        });
+    }
+
+    // Timer Control Functions
+    document.getElementById('timer-control').addEventListener('click', function() {
+        const button = this;
+        if (!isTimerActive) {
+            // Start timer control
+            fetch('/timer_control', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ action: 'start' })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    startTimerControl();
+                    button.textContent = 'Stop Timer Control';
+                    button.classList.remove('bg-purple-500', 'hover:bg-purple-600');
+                    button.classList.add('bg-gray-500', 'hover:bg-gray-600');
+                    document.getElementById('timer-status').classList.remove('hidden');
+                    updateSystemMode('timer');
+                }
+            });
+        } else {
+            // Stop timer control
+            stopTimerControl();
+            button.textContent = 'Start Timer Control';
+            button.classList.remove('bg-gray-500', 'hover:bg-gray-600');
+            button.classList.add('bg-purple-500', 'hover:bg-purple-600');
+            document.getElementById('timer-status').classList.add('hidden');
+            updateSystemMode('manual');
+        }
+    });
+
+    function startTimerControl() {
+        isTimerActive = true;
+        remainingTime = CYCLE_TIME;
+        currentDirectionIndex = 0;
+        updateSignals();
+
+        timerInterval = setInterval(() => {
+            remainingTime--;
+            document.getElementById('next-switch').textContent = remainingTime + 's';
+
+            if (remainingTime <= 0) {
+                currentDirectionIndex = (currentDirectionIndex + 1) % DIRECTIONS.length;
+                remainingTime = CYCLE_TIME;
+                updateSignals();
+            }
+        }, 1000);
+    }
+
+    function stopTimerControl() {
+        isTimerActive = false;
+        clearInterval(timerInterval);
+        // Reset all signals to red
+        fetch('/timer_control', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ action: 'stop' })
+        })
+        .then(response => response.json())
+        .then(data => {
+            updateSignalDisplay(data);
+        });
+    }
+
+    function updateSignals() {
+        fetch('/update_signals', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ 
+                current_direction: DIRECTIONS[currentDirectionIndex]
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            updateSignalDisplay(data);
+        });
+    }
+
+    function updateSignalDisplay(data) {
+        Object.keys(data.signal_status).forEach(dir => {
+            const signal = document.getElementById(`${dir}-signal`);
+            const wait = document.getElementById(`${dir}-wait`);
+            
+            if (signal) {
+                signal.className = `w-16 h-16 mx-auto rounded-full ${data.signal_status[dir] === 'red' ? 'bg-red-500' : 'bg-green-500'}`;
+            }
+            if (wait) {
+                wait.textContent = `${data.wait_times[dir]}s`;
+            }
+        });
+    }
+
+    // Disable other control buttons when timer is active
+    function updateControlButtons(disabled) {
+        document.getElementById('auto-control').disabled = disabled;
+        document.getElementById('emergency-stop').disabled = disabled;
+        document.getElementById('manual-override').disabled = disabled;
+        
+        const buttons = ['auto-control', 'emergency-stop', 'manual-override'];
+        buttons.forEach(id => {
+            const button = document.getElementById(id);
+            if (disabled) {
+                button.classList.add('opacity-50', 'cursor-not-allowed');
+            } else {
+                button.classList.remove('opacity-50', 'cursor-not-allowed');
+            }
+        });
+    }
+
+    // Auto Control Functions
+    document.getElementById('auto-control').addEventListener('click', function() {
+        console.log('Auto control button clicked');
+        if (isTimerActive) {
+            alert('Please stop timer control first');
+            return;
+        }
+        document.getElementById('auto-modal').classList.remove('hidden');
+    });
+
+    function closeAutoModal() {
+        console.log('Closing auto modal');
+        document.getElementById('auto-modal').classList.add('hidden');
+        resetPreviews();
+    }
+
+    function resetPreviews() {
+        console.log('Resetting previews');
+        ['north', 'south', 'east', 'west'].forEach(direction => {
+            document.getElementById(`${direction}-preview`).innerHTML = '<span class="text-gray-400">No photo selected</span>';
+            document.getElementById(`${direction}-count`).textContent = '0';
+        });
+    }
+
+    function previewImage(direction) {
+        console.log(`Previewing image for ${direction}`);
+        const input = document.getElementById(`${direction}-photo`);
+        const preview = document.getElementById(`${direction}-preview`);
+        
+        if (input.files && input.files[0]) {
+            const reader = new FileReader();
+            
+            reader.onload = function(e) {
+                preview.innerHTML = `<img src="${e.target.result}" class="h-full w-full object-cover rounded">`;
+                uploadAndAnalyze(direction, input.files[0]);
+            };
+            
+            reader.readAsDataURL(input.files[0]);
+        }
+    }
+
+    function uploadAndAnalyze(direction, file) {
+        console.log(`Starting upload and analysis for ${direction} direction with file:`, file);
+        const formData = new FormData();
+        formData.append('photo', file);
+        formData.append('direction', direction);
+
+        // Show loading state
+        const countElement = document.getElementById(`${direction}-count`);
+        countElement.textContent = 'Loading...';
+
+        fetch('/analyze_traffic', {
+            method: 'POST',
+            body: formData
+        })
+        .then(response => {
+            console.log(`Raw response for ${direction}:`, response);
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            return response.json();
+        })
+        .then(data => {
+            console.log(`Analysis data for ${direction}:`, data);
+            
+            // Check if we have valid vehicle count data
+            if (data && typeof data.vehicle_count !== 'undefined') {
+                // Update vehicle count with validation
+                const count = parseInt(data.vehicle_count) || 0;
+                countElement.textContent = count.toString();
+                console.log(`Updated ${direction} count to:`, count);
+                
+                // Update traffic density display
+                const densityBar = document.getElementById(`${direction}-density`);
+                const densityText = document.getElementById(`${direction}-density-text`);
+                
+                const percentage = Math.min(Math.round((count / 20) * 100), 100);
+                if (densityBar) {
+                    densityBar.style.width = `${percentage}%`;
+                    console.log(`Updated ${direction} density bar to:`, percentage);
+                }
+                if (densityText) {
+                    densityText.textContent = `${percentage}%`;
+                }
+                
+                // Update total vehicles count
+                updateTotalVehicles();
+                
+                // Show success message
+                showAlert('success', `Successfully analyzed ${direction} traffic: ${count} vehicles detected`);
+            } else {
+                console.error(`Invalid data format for ${direction}:`, data);
+                countElement.textContent = '0';
+                showAlert('danger', `Error: Invalid response format for ${direction} direction`);
+            }
+        })
+        .catch(error => {
+            console.error(`Error analyzing traffic for ${direction}:`, error);
+            countElement.textContent = '0';
+            showAlert('danger', `Error analyzing traffic photo for ${direction} direction: ${error.message}`);
+        });
+    }
+
+    function updateTotalVehicles() {
+        const directions = ['north', 'south', 'east', 'west'];
+        let totalVehicles = 0;
+        
+        directions.forEach(dir => {
+            const countEl = document.getElementById(`${dir}-count`);
+            if (countEl && countEl.textContent !== 'Loading...') {
+                const count = parseInt(countEl.textContent) || 0;
+                console.log(`${dir} count:`, count);
+                totalVehicles += count;
+            }
+        });
+        
+        console.log('Total vehicles calculated:', totalVehicles);
+        const totalElement = document.getElementById('total-vehicles');
+        if (totalElement) {
+            totalElement.textContent = totalVehicles.toString();
+            console.log('Updated total vehicles display to:', totalVehicles);
+        }
+        
+        updateStatistics();
+    }
+
+    function getDensityIndex(direction) {
+        const indices = { north: 1, south: 2, east: 3, west: 4 };
+        return indices[direction];
+    }
+
+    function startAutoControl() {
+        console.log('Starting auto control check...');
+        
+        // Get all traffic counts
+        const directions = ['north', 'south', 'east', 'west'];
+        const vehicleCounts = {};
+        const missingDirections = [];
+        
+        directions.forEach(direction => {
+            const countElement = document.getElementById(`${direction}-count`);
+            const countText = countElement ? countElement.textContent : '0';
+            console.log(`${direction} count element text:`, countText);
+            
+            // Check if count is still in loading state
+            if (countText === 'Loading...') {
+                missingDirections.push(direction);
+                return;
+            }
+            
+            const count = parseInt(countText) || 0;
+            vehicleCounts[direction] = count;
+            
+            if (count === 0) {
+                const preview = document.getElementById(`${direction}-preview`);
+                const hasImage = preview && preview.querySelector('img');
+                if (!hasImage) {
+                    missingDirections.push(direction);
+                }
+            }
+        });
+
+        console.log('Vehicle counts:', vehicleCounts);
+        console.log('Missing directions:', missingDirections);
+
+        if (missingDirections.length > 0) {
+            const formattedDirections = missingDirections
+                .map(dir => dir.charAt(0).toUpperCase() + dir.slice(1))
+                .join(', ');
+            alert(`Please upload traffic images for: ${formattedDirections}`);
+            return;
+        }
+
+        // Proceed with auto control
+        fetch('/start_auto_control', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                vehicle_counts: vehicleCounts
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            console.log('Auto control response:', data);
+            if (data.status === 'success') {
+                // Update signal colors
+                Object.entries(data.signal_status).forEach(([direction, status]) => {
+                    const signalElement = document.getElementById(`${direction}-signal`);
+                    if (signalElement) {
+                        // Remove all color classes
+                        signalElement.classList.remove('bg-red-500', 'bg-green-500');
+                        // Add appropriate color class
+                        signalElement.classList.add(status === 'red' ? 'bg-red-500' : 'bg-green-500');
+                        console.log(`Updated ${direction} signal to ${status}`);
+                    }
+                });
+
+                // Update wait times
+                Object.entries(data.wait_times).forEach(([direction, time]) => {
+                    const waitElement = document.getElementById(`${direction}-wait`);
+                    if (waitElement) {
+                        waitElement.textContent = `${time}s`;
+                        console.log(`Updated ${direction} wait time to ${time}s`);
+                    }
+                });
+                
+                // Show success message
+                showAlert('success', 'Automatic control started successfully. ' +
+                         `Highest traffic in ${data.max_direction} direction with ${data.traffic_counts[data.max_direction]} vehicles.`);
+                
+                // Update system mode
+                updateSystemMode('automatic', `Traffic-based control active: ${data.max_direction} has highest traffic`);
+                
+                // Close the modal if it exists
+                const autoModal = document.getElementById('auto-modal');
+                if (autoModal) {
+                    autoModal.classList.add('hidden');
+                }
+            } else {
+                showAlert('danger', data.message || 'Error starting automatic control');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            showAlert('danger', 'Error communicating with server');
+        });
+    }
+
+    function showAlert(type, message) {
+        const alertsContainer = document.getElementById('alerts-container') || createAlertsContainer();
+        
+        const alertDiv = document.createElement('div');
+        alertDiv.className = `alert alert-${type} alert-dismissible fade show`;
+        alertDiv.setAttribute('role', 'alert');
+        alertDiv.innerHTML = `
+            ${message}
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        `;
+        
+        alertsContainer.appendChild(alertDiv);
+        
+        // Auto-dismiss after 5 seconds
+        setTimeout(() => {
+            alertDiv.remove();
+        }, 5000);
+    }
+
+    function createAlertsContainer() {
+        const container = document.createElement('div');
+        container.id = 'alerts-container';
+        container.className = 'fixed top-4 right-4 z-50';
+        document.body.appendChild(container);
+        return container;
+    }
+
+    function updateSignalStatus(status) {
+        Object.entries(status).forEach(([direction, color]) => {
+            const signal = document.getElementById(`${direction}-signal`);
+            if (signal) {
+                signal.classList.remove('bg-red', 'bg-yellow', 'bg-green');
+                signal.classList.add(`bg-${color}`);
+            }
+        });
+    }
+
+    function updateWaitTimes(times) {
+        Object.entries(times).forEach(([direction, time]) => {
+            const waitElement = document.getElementById(`${direction}-wait`);
+            if (waitElement) {
+                waitElement.textContent = `${time}s`;
+            }
+        });
+    }
+
+    // Manual Override Functions
+    document.getElementById('manual-override').addEventListener('click', function() {
+        if (isTimerActive) {
+            alert('Please stop timer control first');
+            return;
+        }
+        document.getElementById('manual-modal').classList.remove('hidden');
+    });
+
+    function closeManualModal() {
+        document.getElementById('manual-modal').classList.add('hidden');
+    }
+
+    function handleManualOverride(direction) {
+        fetch('/manual_override', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ direction: direction })
+        })
+        .then(response => response.json())
+        .then(data => {
+            // Update signal status
+            Object.keys(data.signal_status).forEach(dir => {
+                const signal = document.getElementById(`${dir}-signal`);
+                const wait = document.getElementById(`${dir}-wait`);
+                
+                if (signal) {
+                    signal.className = `w-16 h-16 mx-auto rounded-full ${data.signal_status[dir] === 'red' ? 'bg-red-500' : 'bg-green-500'}`;
+                }
+                if (wait) {
+                    wait.textContent = `${data.wait_times[dir]}s`;
+                }
+            });
+
+            // Close modal
+            closeManualModal();
+            updateSystemMode('manual', `Manual control: ${direction} direction is green`);
+            updateStatistics();
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('An error occurred while processing your request.');
+        });
+    }
+
+    // Function to update system mode
+    function updateSystemMode(mode, details = '') {
+        currentMode = mode;
+        const indicator = document.getElementById('mode-indicator');
+        const modeText = document.getElementById('mode-text');
+        const modeDesc = document.getElementById('mode-description');
+
+        // Remove existing color classes
+        indicator.classList.remove('bg-purple-100', 'bg-green-100', 'bg-red-100', 'bg-blue-100');
+        modeText.classList.remove('text-purple-600', 'text-green-600', 'text-red-600', 'text-blue-600');
+
+        // Add appropriate colors based on mode
+        switch(mode) {
+            case 'timer':
+                indicator.classList.add('bg-purple-100');
+                modeText.classList.add('text-purple-600');
+                modeText.textContent = 'Timer Mode';
+                modeDesc.textContent = 'Signals change automatically every 30 seconds';
+                break;
+            case 'automatic':
+                indicator.classList.add('bg-green-100');
+                modeText.classList.add('text-green-600');
+                modeText.textContent = 'Automatic Mode';
+                modeDesc.textContent = 'Signals controlled based on traffic density';
+                break;
+            case 'emergency':
+                indicator.classList.add('bg-red-100');
+                modeText.classList.add('text-red-600');
+                modeText.textContent = 'Emergency Mode';
+                modeDesc.textContent = details || 'Emergency override active';
+                break;
+            case 'manual':
+                indicator.classList.add('bg-blue-100');
+                modeText.classList.add('text-blue-600');
+                modeText.textContent = 'Manual Mode';
+                modeDesc.textContent = details || 'Manual control active';
+                break;
+        }
+    }
+
+    // Function to update statistics
+    function updateStatistics() {
+        // Calculate average wait time
+        const waitTimes = Object.values(document.querySelectorAll('[id$="-wait"]'))
+            .map(el => parseInt(el.textContent));
+        const avgWaitTime = Math.round(waitTimes.reduce((a, b) => a + b, 0) / waitTimes.length);
+        document.getElementById('avg-wait-time').textContent = avgWaitTime + 's';
+
+        // Calculate efficiency based on wait times and vehicle distribution
+        const maxWaitTime = Math.max(...waitTimes);
+        const efficiency = Math.round((1 - (maxWaitTime / 60)) * 100);
+        document.getElementById('system-efficiency').textContent = efficiency + '%';
+    }
+
+    // Update traffic density display
+    function updateTrafficDensity(direction, count) {
+        const percentage = Math.min(Math.round((count / 20) * 100), 100);
+        const densityBar = document.getElementById(`${direction}-density`);
+        const densityText = document.getElementById(`${direction}-density-text`);
+        
+        if (densityBar && densityText) {
+            densityBar.style.width = `${percentage}%`;
+            densityText.textContent = `${percentage}%`;
+        }
+    }
+
+    // Initialize system mode and statistics on page load
+    updateSystemMode('manual');
+    updateStatistics();
+</script>
+{% endblock %} 
