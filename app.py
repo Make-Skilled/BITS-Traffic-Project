@@ -21,6 +21,10 @@ import torch.nn.functional as F
 from inference_sdk import InferenceHTTPClient
 import base64
 import io
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
+from email.mime.image import MIMEImage
 
 app = Flask(__name__)
 app.config.from_object(Config)
@@ -28,6 +32,13 @@ app.config['SECRET_KEY'] = 'your-secret-key-here'  # Replace with a secure secre
 app.config['UPLOAD_FOLDER'] = 'uploads'
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///traffic.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+
+# Email Configuration
+app.config['SMTP_SERVER'] = "smtp.gmail.com"
+app.config['SMTP_PORT'] = 587
+app.config['SMTP_USERNAME'] = "kr4785543@gmail.com"
+app.config['SMTP_PASSWORD'] = "qhuzwfrdagfyqemk"
+
 if not os.path.exists(app.config['UPLOAD_FOLDER']):
     os.makedirs(app.config['UPLOAD_FOLDER'])
 
@@ -99,7 +110,7 @@ hands = mp_hands.Hands(
 # Add after other global variables
 ROBOFLOW_CLIENT = InferenceHTTPClient(
     api_url="https://detect.roboflow.com",
-    api_key="ROBOFLOW_API_KEY"
+    api_key="YvsbdvKc1p5Jtb82NBTd"
 )
 
 # User Model
@@ -733,8 +744,8 @@ def process_video(video_path):
                             print(f"\nProcessing frame {frame_count} for bike #{bike_id}")
                             print(f"Head region size: {head_region.shape}")
                             # Use Roboflow for helmet detection
-                            has_helmet, confidence = detect_helmet_using_roboflow(head_region)
-                            print(f"🎯 Frame {frame_count}, Bike #{bike_id}: Helmet={has_helmet}, Confidence={confidence}\n")
+                            has_helmet, helmet_confidence = detect_helmet_using_roboflow(head_region)
+                            print(f"🎯 Frame {frame_count}, Bike #{bike_id}: Helmet={has_helmet}, Confidence={helmet_confidence}\n")
                             # Draw detection box
                             color = (0, 255, 0) if has_helmet else (0, 0, 255)
                             cv2.rectangle(frame, 
@@ -744,14 +755,14 @@ def process_video(video_path):
                             
                             # Update violations and draw indicators
                             if has_helmet:
-                                cv2.putText(frame, f"Helmet Detected ({confidence:.2f})", 
+                                cv2.putText(frame, f"Helmet Detected ({helmet_confidence:.2f})", 
                                           (int(expanded_head_box[0]), int(expanded_head_box[1]) - 10),
                                           font, font_scale, (0, 255, 0), font_thickness)
                             else:
                                 if not motorcycle_violations[bike_id]['no_helmet']:
                                     motorcycle_violations[bike_id]['no_helmet'] = True
                                     no_helmet += 1
-                                cv2.putText(frame, "No Helmet!", 
+                                cv2.putText(frame, "No Helmet! (Fine: Rs. 1000)", 
                                           (int(expanded_head_box[0]), int(expanded_head_box[1]) - 10),
                                           font, font_scale, (0, 0, 255), font_thickness)
                     else:
@@ -1013,9 +1024,27 @@ def process_image(image_array):
                                   (head_x1, head_y1 - 10),
                                   font, font_scale, (0, 255, 0), font_thickness)
                     else:
-                        cv2.putText(frame, "No Helmet!", 
+                        cv2.putText(frame, "No Helmet! (Fine: Rs. 1000)", 
                                   (head_x1, head_y1 - 10),
                                   font, font_scale, (0, 0, 255), font_thickness)
+                        
+                        # Save the processed image for email attachment
+                        output_filename = f"violation_helmet_{uuid.uuid4()}.jpg"
+                        output_path = os.path.join(PROCESSED_FOLDER, output_filename)
+                        cv2.imwrite(output_path, frame)
+                        
+                        # Send violation email if user is logged in
+                        if current_user and current_user.is_authenticated and current_user.email:
+                            violation_details = {
+                                'confidence': helmet_confidence,
+                                'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                                'type': 'No Helmet'
+                            }
+                            send_violation_email(
+                                current_user.email,
+                                output_path,
+                                violation_details
+                            )
                 
                 # Check for phone usage using hand pose
                 if hand_results.multi_hand_landmarks:
@@ -1048,9 +1077,27 @@ def process_image(image_array):
                             # If fingers are close together near head, likely holding phone
                             if distance < 0.1:
                                 using_phone = True
-                                cv2.putText(frame, "Phone Usage Detected!", 
+                                cv2.putText(frame, "Phone Usage Detected! (Fine: Rs. 500)", 
                                           (int(hand_x), int(hand_y) - 10),
                                           font, font_scale, (0, 165, 255), font_thickness)
+                                
+                                # Save the processed image for email attachment
+                                output_filename = f"violation_phone_{uuid.uuid4()}.jpg"
+                                output_path = os.path.join(PROCESSED_FOLDER, output_filename)
+                                cv2.imwrite(output_path, frame)
+                                
+                                # Send violation email if user is logged in
+                                if current_user and current_user.is_authenticated and current_user.email:
+                                    violation_details = {
+                                        'confidence': 0.9,  # High confidence for phone detection
+                                        'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                                        'type': 'Phone Usage'
+                                    }
+                                    send_violation_email(
+                                        current_user.email,
+                                        output_path,
+                                        violation_details
+                                    )
         
         if not person_detected:
             cv2.putText(frame, "No person detected", 
@@ -1195,6 +1242,112 @@ def detect_helmet_using_roboflow(frame):
         import traceback
         traceback.print_exc()
         return False, 0
+
+def send_violation_email(user_email, image_path, violation_details):
+    """
+    Send an email notification for traffic violations.
+    """
+    try:
+        msg = MIMEMultipart('alternative')
+        msg['From'] = app.config['SMTP_USERNAME']
+        msg['To'] = user_email
+        
+        # Set subject based on violation type
+        violation_type = violation_details.get('type', '')
+        if 'phone' in violation_type.lower():
+            msg['Subject'] = "Traffic Violation Notice - Phone Usage Detected"
+            fine_amount = 500
+        else:  # helmet violation
+            msg['Subject'] = "Traffic Violation Notice - Helmet Not Detected"
+            fine_amount = 1000
+
+        # Create HTML email body
+        html_body = f"""
+        <html>
+        <body style="font-family: Arial, sans-serif;">
+            <h2>Traffic Violation Notice</h2>
+            
+            <p>Dear User,</p>
+
+            <p><strong>A traffic violation has been detected in your recent monitoring session.</strong></p>
+
+            <div style="margin: 20px 0; padding: 15px; border: 1px solid #ddd; background-color: #f9f9f9;">
+                <h3>Violation Details:</h3>
+                <ul>
+                    <li><strong>Type:</strong> {violation_type}</li>
+                    <li><strong>Date & Time:</strong> {violation_details.get('timestamp', datetime.now().strftime('%Y-%m-%d %H:%M:%S'))}</li>
+                    <li><strong>Confidence:</strong> {violation_details.get('confidence', 'N/A')}</li>
+                    <li><strong>Fine Amount: Rs. {fine_amount}</strong></li>
+                </ul>
+            </div>
+
+            <p>Please find the attached image for reference.</p>
+
+            <div style="margin: 20px 0; padding: 15px; border: 1px solid #ff9999; background-color: #fff2f2;">
+                <h3>Important Notice:</h3>
+                <ul>
+                    <li><strong>This violation carries a fine of Rs. {fine_amount}</strong></li>
+                    <li><strong>Please ensure compliance with traffic safety rules to avoid future penalties</strong></li>
+                    <li><strong>Multiple violations may result in additional penalties</strong></li>
+                </ul>
+            </div>
+
+            <p>This is an automated notification from the Traffic Monitoring System.</p>
+
+            <p>Best regards,<br>
+            Traffic Monitoring System</p>
+        </body>
+        </html>
+        """
+
+        # Create plain text version as fallback
+        plain_text = f"""
+        Dear User,
+
+        A traffic violation has been detected in your recent monitoring session.
+
+        Violation Details:
+        - Type: {violation_type}
+        - Date & Time: {violation_details.get('timestamp', datetime.now().strftime('%Y-%m-%d %H:%M:%S'))}
+        - Confidence: {violation_details.get('confidence', 'N/A')}
+        - Fine Amount: Rs. {fine_amount}
+
+        Please find the attached image for reference.
+
+        Important Notice:
+        - This violation carries a fine of Rs. {fine_amount}
+        - Please ensure compliance with traffic safety rules to avoid future penalties
+        - Multiple violations may result in additional penalties
+
+        This is an automated notification from the Traffic Monitoring System.
+
+        Best regards,
+        Traffic Monitoring System
+        """
+
+        # Attach both plain text and HTML versions
+        msg.attach(MIMEText(plain_text, 'plain'))
+        msg.attach(MIMEText(html_body, 'html'))
+
+        # Attach the violation image if available
+        if image_path and os.path.exists(image_path):
+            with open(image_path, 'rb') as f:
+                img_data = f.read()
+                image = MIMEImage(img_data)
+                image.add_header('Content-Disposition', 'attachment', filename=os.path.basename(image_path))
+                msg.attach(image)
+
+        # Connect to SMTP server and send email
+        with smtplib.SMTP(app.config['SMTP_SERVER'], app.config['SMTP_PORT']) as server:
+            server.starttls()
+            server.login(app.config['SMTP_USERNAME'], app.config['SMTP_PASSWORD'])
+            server.send_message(msg)
+
+        print(f"Violation email sent successfully to {user_email}")
+        return True
+    except Exception as e:
+        print(f"Error sending violation email: {str(e)}")
+        return False
 
 if __name__ == '__main__':
     with app.app_context():
